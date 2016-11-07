@@ -162,12 +162,16 @@ fn main() {
   let exename = std::env::args()
     .nth(1)
     .unwrap_or_else(|| {
-      std::path::Path::new(&env::args().next().unwrap())
-        .file_stem()
-        .unwrap()
-        .to_string_lossy()
-        .into_owned()
+      println!("failed to get the name of command");
+      std::process::exit(1);
     });
+  // .unwrap_or_else(|| {
+  //   std::path::Path::new(&env::args().next().unwrap())
+  //     .file_stem()
+  //     .unwrap()
+  //     .to_string_lossy()
+  //     .into_owned()
+  // });
 
   use std::process::{Command, Stdio};
   let args: Vec<_> = env::args().skip(2).collect();
