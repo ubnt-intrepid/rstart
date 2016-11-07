@@ -154,33 +154,68 @@ fn read_path_from_registry() -> String {
 
 
 fn main() {
+  // 再帰的に起動するのを防止する
   if env::vars().find(|&(ref key, _)| key == REGRUN_ALREADY_EXECUTED).is_some() {
     return;
   }
 
-  let new_path = read_path_from_registry();
-
+  // 実行ファイル名を取得
   let command = Path::new(&env::args().next().unwrap())
     .file_stem()
     .unwrap()
     .to_string_lossy()
     .into_owned();
-  let args: Vec<_> = env::args().skip(1).collect();
 
-  match Command::new(&command)
-      .env("PATH", new_path)
-      .env(REGRUN_ALREADY_EXECUTED, "1")
-      .args(args.as_slice())
-      .stdin(Stdio::inherit())
-      .stdout(Stdio::inherit())
-      .stderr(Stdio::inherit())
-      .spawn() {
-      Ok(child) => child,
-      Err(err) => {
-        println!("could not execute '{}'. The reason is: {:?}", command, err);
-        return;
+  if command == env!("CARGO_PKG_NAME") {
+    // client interface tool mode.
+    // TODO 仕様を確定する
+    // regrun exec hg summary
+
+    if let Some(scmd) = env::args().nth(1) {
+      if scmd == "exec" {
+        let command = env::args().nth(2).unwrap().to_owned();
+        let args: Vec<_> = env::args().skip(3).collect();
+        let new_path = read_path_from_registry();
+        match Command::new(&command)
+            .env("PATH", new_path)
+            .env(REGRUN_ALREADY_EXECUTED, "1")
+            .args(args.as_slice())
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn() {
+            Ok(child) => child,
+            Err(err) => {
+              println!("could not execute '{}'. The reason is: {:?}", command, err);
+              return;
+            }
+          }
+          .wait()
+          .expect("failed to wait on child");
       }
     }
-    .wait()
-    .expect("failed to wait on child");
+
+  } else {
+    // standalone mode
+    // 自身の名前と同じコマンドを Windows 側の環境変数から検索し実行する
+    let args: Vec<_> = env::args().skip(1).collect();
+    let new_path = read_path_from_registry();
+
+    match Command::new(&command)
+        .env("PATH", new_path)
+        .env(REGRUN_ALREADY_EXECUTED, "1")
+        .args(args.as_slice())
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn() {
+        Ok(child) => child,
+        Err(err) => {
+          println!("could not execute '{}'. The reason is: {:?}", command, err);
+          return;
+        }
+      }
+      .wait()
+      .expect("failed to wait on child");
+  }
 }
