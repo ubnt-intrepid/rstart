@@ -5,12 +5,15 @@ extern crate kernel32;
 use std::env;
 use std::ffi::{CStr, CString};
 use std::mem::transmute;
+use std::process::{Command, Stdio};
 use std::ptr::null_mut;
 
 use winapi::DWORD;
 use winapi::winnt;
 use winapi::minwindef::HKEY;
 use winapi::winerror::ERROR_SUCCESS;
+
+const REGRUN_ALREADY_EXECUTED: &'static str = "REGRUN_ALREADY_EXECUTED";
 
 
 fn expand_environment_strings(s: &str) -> Option<String> {
@@ -25,6 +28,7 @@ fn expand_environment_strings(s: &str) -> Option<String> {
 
   Some(unsafe { CStr::from_ptr(transmute(dst.as_ptr())).to_string_lossy().into_owned() })
 }
+
 
 #[test]
 fn test_expand_environment_strings() {
@@ -155,27 +159,28 @@ fn read_path_from_registry() -> String {
   }
 }
 
-fn main() {
-  let new_path = read_path_from_registry();
-  env::set_var("PATH", new_path);
 
-  let exename = std::env::args()
+fn main() {
+  if env::vars().find(|&(ref key, _)| key == REGRUN_ALREADY_EXECUTED).is_some() {
+    return;
+  }
+
+  let new_path = read_path_from_registry();
+
+  let command = std::env::args()
     .nth(1)
     .unwrap_or_else(|| {
-      println!("failed to get the name of command");
-      std::process::exit(1);
+      std::path::Path::new(&env::args().next().unwrap())
+        .file_stem()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned()
     });
-  // .unwrap_or_else(|| {
-  //   std::path::Path::new(&env::args().next().unwrap())
-  //     .file_stem()
-  //     .unwrap()
-  //     .to_string_lossy()
-  //     .into_owned()
-  // });
-
-  use std::process::{Command, Stdio};
   let args: Vec<_> = env::args().skip(2).collect();
-  match Command::new(&exename)
+
+  match Command::new(&command)
+      .env("PATH", new_path)
+      .env(REGRUN_ALREADY_EXECUTED, "1")
       .args(args.as_slice())
       .stdin(Stdio::inherit())
       .stdout(Stdio::inherit())
@@ -183,7 +188,7 @@ fn main() {
       .spawn() {
       Ok(child) => child,
       Err(err) => {
-        println!("could not execute {}: {:?}", exename, err);
+        println!("could not execute '{}'. The reason is: {:?}", command, err);
         return;
       }
     }
