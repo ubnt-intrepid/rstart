@@ -152,10 +152,28 @@ fn read_path_from_registry() -> String {
   new_path
 }
 
+fn execute(command: &str, args: &[String], path: &str) {
+  match Command::new(command)
+      .env(REGRUN_ALREADY_EXECUTED, "1")
+      .env("PATH", path)
+      .args(args)
+      .stdin(Stdio::inherit())
+      .stdout(Stdio::inherit())
+      .stderr(Stdio::inherit())
+      .spawn() {
+      Ok(child) => child,
+      Err(err) => {
+        println!("could not execute '{}'. The reason is: {:?}", command, err);
+        return;
+      }
+    }
+    .wait()
+    .expect("failed to wait on child");
+}
 
 fn main() {
-  // 再帰的に起動するのを防止する
-  if env::vars().find(|&(ref key, _)| key == REGRUN_ALREADY_EXECUTED).is_some() {
+  // prevent to execute the command infinitely
+  if env::var(REGRUN_ALREADY_EXECUTED).is_ok() {
     return;
   }
 
@@ -172,27 +190,15 @@ fn main() {
     // regrun exec hg summary
 
     if let Some(scmd) = env::args().nth(1) {
-      if scmd == "exec" {
-        let command = env::args().nth(2).unwrap().to_owned();
-        let args: Vec<_> = env::args().skip(3).collect();
-        let new_path = read_path_from_registry();
-        match Command::new(&command)
-            .env("PATH", new_path)
-            .env(REGRUN_ALREADY_EXECUTED, "1")
-            .args(args.as_slice())
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .spawn() {
-            Ok(child) => child,
-            Err(err) => {
-              println!("could not execute '{}'. The reason is: {:?}", command, err);
-              return;
-            }
-          }
-          .wait()
-          .expect("failed to wait on child");
+      if scmd != "exec" {
+        return;
       }
+
+      let command = env::args().nth(2).unwrap().to_owned();
+      let args: Vec<_> = env::args().skip(3).collect();
+      let new_path = read_path_from_registry();
+
+      execute(&command, &args[..], &new_path);
     }
 
   } else {
@@ -201,21 +207,6 @@ fn main() {
     let args: Vec<_> = env::args().skip(1).collect();
     let new_path = read_path_from_registry();
 
-    match Command::new(&command)
-        .env("PATH", new_path)
-        .env(REGRUN_ALREADY_EXECUTED, "1")
-        .args(args.as_slice())
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn() {
-        Ok(child) => child,
-        Err(err) => {
-          println!("could not execute '{}'. The reason is: {:?}", command, err);
-          return;
-        }
-      }
-      .wait()
-      .expect("failed to wait on child");
+    execute(&command, &args, &new_path);
   }
 }
