@@ -33,15 +33,6 @@ fn test_expand_environment_strings() {
 }
 
 
-struct Key(HKEY);
-
-impl Drop for Key {
-  fn drop(&mut self) {
-    unsafe { advapi32::RegCloseKey(self.0) };
-    self.0 = null_mut();
-  }
-}
-
 #[derive(Debug)]
 struct Value {
   var_type: DWORD,
@@ -68,58 +59,68 @@ impl Value {
   }
 }
 
-fn open_key(hkey: HKEY, path: &str) -> Option<Key> {
-  let mut key = null_mut();
+struct Key(HKEY);
 
-  let path = CString::new(path).unwrap();
-  let ret =
-    unsafe { advapi32::RegOpenKeyExA(hkey, path.as_ptr(), 0, winnt::KEY_QUERY_VALUE, &mut key) };
-  if ret != (unsafe { transmute(ERROR_SUCCESS) }) {
-    return None;
+impl Drop for Key {
+  fn drop(&mut self) {
+    unsafe { advapi32::RegCloseKey(self.0) };
+    self.0 = null_mut();
   }
-
-  Some(Key(key))
 }
 
-fn query_value(hkey: HKEY, name: &str) -> Option<Value> {
-  let name = CString::new(name).unwrap();
-  let mut var_type: DWORD = 0;
-  let mut data = vec![0u8; 8196];
-  let mut data_size: DWORD = data.len() as DWORD;
-  let ret = unsafe {
-    advapi32::RegQueryValueExA(hkey,
-                               name.as_ptr(),
-                               null_mut(),
-                               &mut var_type,
-                               data.as_mut_ptr(),
-                               &mut data_size)
-  };
-  if ret != (unsafe { transmute(ERROR_SUCCESS) }) {
-    return None;
+impl Key {
+  fn open(hkey: HKEY, path: &str) -> Option<Key> {
+    let mut key = null_mut();
+
+    let path = CString::new(path).unwrap();
+    let ret =
+      unsafe { advapi32::RegOpenKeyExA(hkey, path.as_ptr(), 0, winnt::KEY_QUERY_VALUE, &mut key) };
+    if ret != (unsafe { transmute(ERROR_SUCCESS) }) {
+      return None;
+    }
+
+    Some(Key(key))
   }
 
-  data.resize(data_size as usize, 0u8);
+  fn query_value(&self, name: &str) -> Option<Value> {
+    let name = CString::new(name).unwrap();
+    let mut var_type: DWORD = 0;
+    let mut data = vec![0u8; 8196];
+    let mut data_size: DWORD = data.len() as DWORD;
+    let ret = unsafe {
+      advapi32::RegQueryValueExA(self.0,
+                                 name.as_ptr(),
+                                 null_mut(),
+                                 &mut var_type,
+                                 data.as_mut_ptr(),
+                                 &mut data_size)
+    };
+    if ret != (unsafe { transmute(ERROR_SUCCESS) }) {
+      return None;
+    }
 
-  Some(Value {
-    var_type: var_type,
-    var_data: data,
-  })
+    data.resize(data_size as usize, 0u8);
+
+    Some(Value {
+      var_type: var_type,
+      var_data: data,
+    })
+  }
 }
-
 
 fn main() {
   println!("{:?}", expand_environment_strings("%APPDATA%"));
 
-  let key = open_key(winapi::HKEY_LOCAL_MACHINE,
-                     "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
+  let key = Key::open(winapi::HKEY_LOCAL_MACHINE,
+                      "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
   if let Some(key) = key {
-    if let Some(value) = query_value(key.0, "Path") {
+    if let Some(value) = key.query_value("Path") {
       let s = unsafe {
         CStr::from_ptr(transmute(value.var_data.as_ptr())).to_string_lossy().into_owned()
       };
       println!("{}, {:?}", value.type_str(), s);
     }
-    if let Some(value) = query_value(key.0, "OS") {
+    if let Some(value) = key.query_value("OS") {
       let s = unsafe {
         CStr::from_ptr(transmute(value.var_data.as_ptr())).to_string_lossy().into_owned()
       };
@@ -127,9 +128,9 @@ fn main() {
     }
   }
 
-  let key = open_key(winapi::HKEY_CURRENT_USER, "Environment");
+  let key = Key::open(winapi::HKEY_CURRENT_USER, "Environment");
   if let Some(key) = key {
-    if let Some(value) = query_value(key.0, "Path") {
+    if let Some(value) = key.query_value("Path") {
       let s = unsafe {
         CStr::from_ptr(transmute(value.var_data.as_ptr())).to_string_lossy().into_owned()
       };
