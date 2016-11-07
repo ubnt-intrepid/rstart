@@ -5,6 +5,7 @@ extern crate kernel32;
 use std::env;
 use std::ffi::{CStr, CString};
 use std::mem::transmute;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::ptr::null_mut;
 
@@ -167,16 +168,12 @@ fn main() {
 
   let new_path = read_path_from_registry();
 
-  let command = std::env::args()
-    .nth(1)
-    .unwrap_or_else(|| {
-      std::path::Path::new(&env::args().next().unwrap())
-        .file_stem()
-        .unwrap()
-        .to_string_lossy()
-        .into_owned()
-    });
-  let args: Vec<_> = env::args().skip(2).collect();
+  let command = Path::new(&env::args().next().unwrap())
+    .file_stem()
+    .unwrap()
+    .to_string_lossy()
+    .into_owned();
+  let args: Vec<_> = env::args().skip(1).collect();
 
   match Command::new(&command)
       .env("PATH", new_path)
