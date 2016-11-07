@@ -159,6 +159,30 @@ fn main() {
   let new_path = read_path_from_registry();
   env::set_var("PATH", new_path);
 
-  assert!(std::process::Command::new("latexmk").spawn().is_ok());
-  assert!(std::process::Command::new("gcc").spawn().is_err());
+  let exename = std::env::args()
+    .nth(1)
+    .unwrap_or_else(|| {
+      std::path::Path::new(&env::args().next().unwrap())
+        .file_stem()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned()
+    });
+
+  use std::process::{Command, Stdio};
+  let args: Vec<_> = env::args().skip(2).collect();
+  match Command::new(&exename)
+      .args(args.as_slice())
+      .stdin(Stdio::inherit())
+      .stdout(Stdio::inherit())
+      .stderr(Stdio::inherit())
+      .spawn() {
+      Ok(child) => child,
+      Err(err) => {
+        println!("could not execute {}: {:?}", exename, err);
+        return;
+      }
+    }
+    .wait()
+    .expect("failed to wait on child");
 }
