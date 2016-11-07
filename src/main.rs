@@ -139,25 +139,17 @@ fn read_path_from_registry() -> String {
       .and_then(|value| value.to_string().map(|s| expand_environment_strings(&s).unwrap_or(s)))
   });
 
-  match system_path {
-    Some(mut path) => {
-      if let Some(user_path) = user_path {
-        let user_path = user_path.trim();
-        if user_path != "" {
-          path += ";";
-          path += user_path;
-        }
-      }
-      path
-    }
-    None => {
-      if let Some(path) = user_path {
-        path.trim().to_owned()
-      } else {
-        "".to_owned()
-      }
-    }
+  let mut new_path = String::new();
+  if let Some(ref path) = user_path {
+    new_path += path;
   }
+  if let Some(ref path) = system_path {
+    if new_path != "" {
+      new_path += ";";
+    }
+    new_path += path;
+  }
+  new_path
 }
 
 
