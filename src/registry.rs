@@ -112,6 +112,47 @@ impl Key {
       var_data: data,
     })
   }
+
+  pub fn enum_values(&self) -> Result<Vec<(String, Value)>, String> {
+    const MAX_ITEMS: u32 = 1_000_000;
+
+    let mut values = Vec::new();
+
+    for i in 0..MAX_ITEMS {
+      let mut var_type: DWORD = 0;
+      let mut name = vec![0u8; 8196];
+      let mut name_size: DWORD = name.len() as DWORD;
+      let mut data = vec![0u8; 8196];
+      let mut data_size: DWORD = data.len() as DWORD;
+      let ret = unsafe {
+        advapi32::RegEnumValueA(self.0,
+                                i,
+                                transmute(name.as_mut_ptr()),
+                                &mut name_size,
+                                null_mut(),
+                                &mut var_type,
+                                data.as_mut_ptr(),
+                                &mut data_size)
+      };
+
+      match ret as u32 {
+        winapi::ERROR_SUCCESS => {
+          let name =
+            unsafe { CStr::from_ptr(transmute(name.as_ptr())).to_string_lossy().into_owned() };
+          let value = Value {
+            var_type: var_type,
+            var_data: data,
+          };
+
+          values.push((name, value));
+        }
+        winapi::ERROR_NO_MORE_ITEMS => break,
+        _ => return Err(get_error_message()),
+      }
+    }
+
+    Ok(values)
+  }
 }
 
 impl Drop for Key {

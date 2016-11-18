@@ -15,6 +15,29 @@ const REGRUN_ALREADY_EXECUTED: &'static str = "REGRUN_ALREADY_EXECUTED";
 
 
 fn main() {
+  let envs = registry::Key::open(RootKey::CurrentUser, "Environment").unwrap();
+  for env in envs.enum_values().unwrap() {
+    println!("{} = {:?}", env.0, env.1.to_string());
+  }
+  let envs = registry::Key::open(RootKey::CurrentUser, "Volatile Environment").unwrap();
+  for env in envs.enum_values().unwrap() {
+    println!("{} = {:?}", env.0, env.1.to_string());
+  }
+
+  let envs = Key::open(RootKey::LocalMachine,
+                       r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")
+    .unwrap();
+  for env in envs.enum_values().unwrap() {
+    println!("{} = {:?}", env.0, env.1.to_string());
+  }
+
+  println!("------------");
+  for (key, value) in std::env::vars() {
+    println!("{} = {}", key, value);
+  }
+
+  return;
+
   // prevent to execute the command infinitely
   if env::var(REGRUN_ALREADY_EXECUTED).is_ok() {
     return;
@@ -37,16 +60,15 @@ fn main() {
 
 
 fn read_path_from_registry() -> Result<String, String> {
-  let system_path = Key::open(RootKey::LocalMachine,
-                              r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")
-    ?
-    .query_value("Path")?
+  let system_env = Key::open(RootKey::LocalMachine,
+                             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")?;
+  let user_env = Key::open(RootKey::CurrentUser, "Environment")?;
+
+  let system_path = system_env.query_value("Path")?
     .to_string()
     .map(|s| windows::expand_env(&s).unwrap_or(s));
 
-  let user_path = Key::open(RootKey::CurrentUser, "Environment")
-    ?
-    .query_value("Path")?
+  let user_path = user_env.query_value("Path")?
     .to_string()
     .map(|s| windows::expand_env(&s).unwrap_or(s));
 
