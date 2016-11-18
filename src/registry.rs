@@ -53,36 +53,19 @@ pub struct Value {
 }
 
 impl Value {
-  pub fn type_str(&self) -> &'static str {
-    match self.var_type {
-      winnt::REG_NONE => "REG_NONE",
-      winnt::REG_SZ => "REG_SZ",
-      winnt::REG_EXPAND_SZ => "REG_EXPAND_SZ",
-      winnt::REG_BINARY => "REG_BINARY",
-      winnt::REG_DWORD_LITTLE_ENDIAN => "REG_DWORD_LITTLE_ENDIAN",
-      winnt::REG_DWORD_BIG_ENDIAN => "REG_DWORD_BIG_ENDIAN",
-      winnt::REG_LINK => "REG_LINK",
-      winnt::REG_MULTI_SZ => "REG_MULTI_SZ",
-      winnt::REG_RESOURCE_LIST => "REG_RESOURCE_LIST",
-      winnt::REG_FULL_RESOURCE_DESCRIPTOR => "REG_FULL_RESOURCE_DESCRIPTOR",
-      winnt::REG_RESOURCE_REQUIREMENTS_LIST => "REG_RESOURCE_REQUIREMENTS_LIST",
-      winnt::REG_QWORD => "REG_QWORD",
-      _ => "Unknown",
-    }
-  }
-
   pub fn to_string(&self) -> Option<String> {
-    match self.type_str() {
-      "REG_SZ" | "REG_EXPAND_SZ" => {
-        Some(unsafe {
-          CStr::from_ptr(transmute(self.var_data.as_ptr())).to_string_lossy().into_owned()
-        })
-      }
+    match self.var_type {
+      winnt::REG_SZ |
+      winnt::REG_EXPAND_SZ => Some(make_string(self.var_data.as_ptr())),
       _ => None,
     }
   }
 }
 
+fn make_string(ptr: *const u8) -> String {
+  let cstr = unsafe { CStr::from_ptr(transmute(ptr)) };
+  cstr.to_string_lossy().into_owned()
+}
 
 pub struct Key(HKEY);
 
