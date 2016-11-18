@@ -1,15 +1,18 @@
 extern crate winapi;
 extern crate advapi32;
 extern crate kernel32;
+extern crate shell32;
 
 mod windows;
 mod registry;
+mod csidl;
 
 use std::env;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 use registry::{Key, RootKey};
+use csidl::{CSIDL, get_special_folder_path};
 
 const REGRUN_ALREADY_EXECUTED: &'static str = "REGRUN_ALREADY_EXECUTED";
 
@@ -88,6 +91,23 @@ fn execute(name: &str, args: &[String]) {
     let value = value.to_string().unwrap();
     command.env(key, windows::expand_env(&value).unwrap_or(value));
   }
+  command.env("CommonProgramFiles",
+              get_special_folder_path(CSIDL::CommonProgramFiles).unwrap());
+  command.env("CommonProgramFiles(x86)",
+              get_special_folder_path(CSIDL::CommonProgramFilesX86).unwrap());
+  command.env("ProgramFiles",
+              get_special_folder_path(CSIDL::ProgramFiles).unwrap());
+  command.env("ProgramFiles(x86)",
+              get_special_folder_path(CSIDL::ProgramFilesX86).unwrap());
+  // TODO:
+  // ALLUSERSPROFILE
+  // CommonProgramW6432
+  // ComputerName
+  // ProgramData
+  // ProgramW6432
+  // PUBLIC
+  // SystemDrive
+  // SystemRoot
   command.env(REGRUN_ALREADY_EXECUTED, "1");
   command.env("PATH", path);
 

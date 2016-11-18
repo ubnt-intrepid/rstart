@@ -1,6 +1,6 @@
 use winapi;
 use advapi32;
-use kernel32;
+use windows;
 
 use std::ffi::{CStr, CString};
 use std::mem::transmute;
@@ -10,24 +10,6 @@ use winapi::DWORD;
 use winapi::winnt;
 use winapi::minwindef::HKEY;
 use winapi::winerror::ERROR_SUCCESS;
-
-
-fn get_error_message() -> String {
-  let mut buf = vec![0u8; 1024];
-
-  unsafe {
-    kernel32::FormatMessageA(winapi::FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                             winapi::FORMAT_MESSAGE_FROM_SYSTEM,
-                             null_mut(),
-                             kernel32::GetLastError(),
-                             winapi::LANG_USER_DEFAULT as DWORD,
-                             buf.as_mut_ptr() as winapi::LPSTR,
-                             0,
-                             null_mut())
-  };
-
-  unsafe { CStr::from_ptr(transmute(buf.as_ptr())).to_string_lossy().into_owned() }
-}
 
 
 #[derive(Debug)]
@@ -82,7 +64,7 @@ impl Key {
                               &mut key)
     };
     if ret != (unsafe { transmute(ERROR_SUCCESS) }) {
-      return Err(get_error_message());
+      return Err(windows::get_error_message());
     }
 
     Ok(Key(key))
@@ -102,7 +84,7 @@ impl Key {
                                  &mut data_size)
     };
     if ret != (unsafe { transmute(ERROR_SUCCESS) }) {
-      return Err(get_error_message());
+      return Err(windows::get_error_message());
     }
 
     data.resize(data_size as usize, 0u8);
@@ -147,7 +129,7 @@ impl Key {
           values.push((name, value));
         }
         winapi::ERROR_NO_MORE_ITEMS => break,
-        _ => return Err(get_error_message()),
+        _ => return Err(windows::get_error_message()),
       }
     }
 
