@@ -184,26 +184,7 @@ fn main() {
     .to_string_lossy()
     .into_owned();
 
-  if command == env!("CARGO_PKG_NAME") {
-    // client interface tool mode.
-    // TODO 仕様を確定する
-    // regrun exec hg summary
-
-    if let Some(scmd) = env::args().nth(1) {
-      if scmd != "exec" {
-        return;
-      }
-
-      let command = env::args().nth(2).unwrap().to_owned();
-      let args: Vec<_> = env::args().skip(3).collect();
-      let new_path = read_path_from_registry();
-
-      execute(&command, &args[..], &new_path);
-    }
-
-  } else {
-    // standalone mode
-    // 自身の名前と同じコマンドを Windows 側の環境変数から検索し実行する
+  if command != env!("CARGO_PKG_NAME") {
     let args: Vec<_> = env::args().skip(1).collect();
     let new_path = read_path_from_registry();
 
