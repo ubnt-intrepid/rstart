@@ -1,16 +1,17 @@
-# `renv`
-
-Run command with environment variable registered as Registry entries.
+# `rstart`
 
 ## Overview
 `$PATH` からではなくレジストリからコマンドを検索して実行するやつ
 
 ## Usage
-そのうち書く
+```sh
+$ rstart code.cmd
+# open Visual Studio Code
+```
 
 ## Installation
 ```shell-session
-$ cargo build --release
+$ cargo build --git https://github.com/ubnt-intrepid/rstart.git
 ```
 
 ## License
