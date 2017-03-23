@@ -9,7 +9,6 @@ mod csidl;
 
 use std::env;
 use std::process::{Command, Stdio};
-use registry::{Key, RootKey};
 
 fn main() {
   let name = env::args().skip(1).next().unwrap_or_else(|| {
@@ -18,8 +17,22 @@ fn main() {
   });
   let args: Vec<_> = env::args().skip(2).collect();
 
-  let path = read_path_from_registry().expect("failed to get PATH");
-  std::env::set_var("PATH", path.join(";"));
+  let system_path: Vec<_> = registry::query_system_env("Path")
+    .map(split_value)
+    .unwrap();
+  let user_path: Vec<_> = registry::query_user_env("Path")
+    .map(split_value)
+    .unwrap();
+  let path = system_path.into_iter()
+    .chain(user_path)
+    .fold(String::new(), |mut acc, path| {
+      if !acc.is_empty() {
+        acc.push_str(";");
+      }
+      acc.push_str(&path);
+      acc
+    });
+  env::set_var("PATH", path);
 
   Command::new(name)
     .args(args)
@@ -30,26 +43,11 @@ fn main() {
     .expect("failed to spawn process");
 }
 
-fn read_path_from_registry() -> Result<Vec<String>, String> {
-  let system_env = Key::open(RootKey::LocalMachine,
-                             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")?;
-  let user_env = Key::open(RootKey::CurrentUser, "Environment")?;
-
-  let system_path: Vec<_> = system_env.query_value("Path")?
-    .to_string()
+fn split_value(value: registry::Value) -> Vec<String> {
+  value.to_string()
     .map(|s| windows::expand_env(&s).unwrap_or(s))
-    .unwrap_or("".into())
+    .unwrap_or_default()
     .split(";")
     .map(ToOwned::to_owned)
-    .collect();
-
-  let user_path: Vec<_> = user_env.query_value("Path")?
-    .to_string()
-    .map(|s| windows::expand_env(&s).unwrap_or(s))
-    .unwrap_or("".into())
-    .split(";")
-    .map(ToOwned::to_owned)
-    .collect();
-
-  Ok(system_path.into_iter().chain(user_path).collect())
+    .collect()
 }

@@ -144,3 +144,12 @@ impl Drop for Key {
     self.0 = null_mut();
   }
 }
+
+pub fn query_system_env(name: &str) -> Result<Value, String> {
+  let path = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
+  Key::open(RootKey::LocalMachine, path).and_then(|key| key.query_value(name))
+}
+
+pub fn query_user_env(name: &str) -> Result<Value, String> {
+  Key::open(RootKey::CurrentUser, "Environment").and_then(|key| key.query_value(name))
+}
