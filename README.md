@@ -1,16 +1,18 @@
-# regrun
+# `renv`
 
+Run command with environment variable registered as Registry entries.
+
+## Overview
 `$PATH` からではなくレジストリからコマンドを検索して実行するやつ
 
-# Usage
-そのうち書く 
+## Usage
+そのうち書く
 
+## Installation
 ```shell-session
 $ cargo build --release
-$ cp target/release/regrun.exe /usr/bin/hg.exe
 ```
 
-
-# License
+## License
 This software is released under the MIT license.
 See [LICENSE](LICENSE) for details.
