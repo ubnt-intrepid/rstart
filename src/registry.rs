@@ -95,6 +95,7 @@ impl Key {
     })
   }
 
+  #[allow(dead_code)]
   pub fn enum_values(&self) -> Result<Vec<(String, Value)>, String> {
     const MAX_ITEMS: u32 = 1_000_000;
 

@@ -8,119 +8,48 @@ mod registry;
 mod csidl;
 
 use std::env;
-use std::path::Path;
 use std::process::{Command, Stdio};
-
 use registry::{Key, RootKey};
-use csidl::{CSIDL, get_special_folder_path};
-
-const REGRUN_ALREADY_EXECUTED: &'static str = "REGRUN_ALREADY_EXECUTED";
-
 
 fn main() {
-  // prevent to execute the command infinitely
-  if env::var(REGRUN_ALREADY_EXECUTED).is_ok() {
-    for (key, value) in env::vars() {
-      println!("{} = {}", key, value);
-    }
+  let name = env::args().skip(1).next().unwrap_or_else(|| {
+    println!("command is empty");
+    std::process::exit(1)
+  });
+  let args: Vec<_> = env::args().skip(2).collect();
 
-  } else {
-    let command = Path::new(&env::args().next().unwrap())
-      .file_stem()
-      .unwrap()
-      .to_string_lossy()
-      .into_owned();
-    let args: Vec<_> = env::args().skip(1).collect();
+  let path = read_path_from_registry().expect("failed to get PATH");
+  std::env::set_var("PATH", path.join(";"));
 
-    execute(&command, &args);
-  }
+  Command::new(name)
+    .args(args)
+    .stdin(Stdio::inherit())
+    .stdout(Stdio::inherit())
+    .stderr(Stdio::inherit())
+    .status()
+    .expect("failed to spawn process");
 }
 
-
-fn read_path_from_registry() -> Result<String, String> {
+fn read_path_from_registry() -> Result<Vec<String>, String> {
   let system_env = Key::open(RootKey::LocalMachine,
                              r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")?;
   let user_env = Key::open(RootKey::CurrentUser, "Environment")?;
 
-  let system_path = system_env.query_value("Path")?
+  let system_path: Vec<_> = system_env.query_value("Path")?
     .to_string()
-    .map(|s| windows::expand_env(&s).unwrap_or(s));
+    .map(|s| windows::expand_env(&s).unwrap_or(s))
+    .unwrap_or("".into())
+    .split(";")
+    .map(ToOwned::to_owned)
+    .collect();
 
-  let user_path = user_env.query_value("Path")?
+  let user_path: Vec<_> = user_env.query_value("Path")?
     .to_string()
-    .map(|s| windows::expand_env(&s).unwrap_or(s));
+    .map(|s| windows::expand_env(&s).unwrap_or(s))
+    .unwrap_or("".into())
+    .split(";")
+    .map(ToOwned::to_owned)
+    .collect();
 
-  let mut new_path = String::new();
-  if let Some(ref path) = user_path {
-    new_path += path;
-  }
-  if let Some(ref path) = system_path {
-    if new_path != "" {
-      new_path += ";";
-    }
-    new_path += path;
-  }
-  Ok(new_path)
-}
-
-fn execute(name: &str, args: &[String]) {
-  let mut envs = Vec::new();
-  envs.extend(registry::Key::open(RootKey::CurrentUser, "Environment")
-    .unwrap()
-    .enum_values()
-    .unwrap());
-  envs.extend(registry::Key::open(RootKey::CurrentUser, "Volatile Environment")
-    .unwrap()
-    .enum_values()
-    .unwrap());
-  envs.extend(Key::open(RootKey::LocalMachine,
-                        r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")
-    .unwrap()
-    .enum_values()
-    .unwrap());
-  let path = read_path_from_registry().unwrap();
-
-  let mut command = Command::new(name);
-  command.env_clear()
-    .args(args)
-    .stdin(Stdio::inherit())
-    .stdout(Stdio::inherit())
-    .stderr(Stdio::inherit());
-
-  for (key, value) in envs {
-    let value = value.to_string().unwrap();
-    command.env(key, windows::expand_env(&value).unwrap_or(value));
-  }
-  command.env("CommonProgramFiles",
-              get_special_folder_path(CSIDL::CommonProgramFiles).unwrap());
-  command.env("CommonProgramFiles(x86)",
-              get_special_folder_path(CSIDL::CommonProgramFilesX86).unwrap());
-  command.env("ProgramFiles",
-              get_special_folder_path(CSIDL::ProgramFiles).unwrap());
-  command.env("ProgramFiles(x86)",
-              get_special_folder_path(CSIDL::ProgramFilesX86).unwrap());
-  // TODO:
-  // ALLUSERSPROFILE
-  // CommonProgramW6432
-  // ComputerName
-  // ProgramData
-  // ProgramW6432
-  // PUBLIC
-  // SystemDrive
-  // SystemRoot
-  command.env(REGRUN_ALREADY_EXECUTED, "1");
-  command.env("PATH", path);
-
-  match command.spawn() {
-      Ok(child) => child,
-      Err(err) => {
-        println!("could not execute '{} {:?}'. The reason is: {:?}",
-                 name,
-                 args,
-                 err);
-        return;
-      }
-    }
-    .wait()
-    .expect("failed to wait on child");
+  Ok(system_path.into_iter().chain(user_path).collect())
 }

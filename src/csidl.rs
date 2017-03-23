@@ -7,6 +7,7 @@ use std::mem::transmute;
 use std::ptr::null_mut;
 
 
+#[allow(dead_code)]
 pub enum CSIDL {
   CommonAppData,
   ProgramFiles,
@@ -27,6 +28,7 @@ impl Into<i32> for CSIDL {
   }
 }
 
+#[allow(dead_code)]
 pub fn get_special_folder_path(csidl: CSIDL) -> Result<String, String> {
   let mut buf = vec![0u8; 8096];
 
